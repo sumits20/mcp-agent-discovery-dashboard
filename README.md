@@ -56,9 +56,23 @@ Tool names are `weather`, `news`, and `web-search`.
 
 ## Deployment
 
+The MVP can be deployed as a static React frontend plus a Node.js API backend.
+Use this checklist before sharing a public URL:
+
+- [ ] Run `pnpm install:all` from the repository root.
+- [ ] Run `pnpm build` and confirm `frontend/dist` is created.
+- [ ] Deploy the backend first so you have its public URL.
+- [ ] Set backend environment variables on the host.
+- [ ] Deploy the frontend with `VITE_API_BASE_URL` set to the backend URL.
+- [ ] Set `CORS_ORIGIN` on the backend to the deployed frontend URL.
+- [ ] Open the frontend and confirm the dashboard loads MCP servers.
+- [ ] Confirm `/api/health` returns a healthy response from the backend.
+- [ ] Test the weather, news, and web-search demo tools from the UI.
+
 ### Frontend
 
-Deploy `frontend` to Vercel, Netlify, or any static host:
+The frontend is a Vite static build and can run on Cloudflare Pages, Vercel,
+Netlify, or any static host:
 
 ```bash
 pnpm --dir frontend install
@@ -66,6 +80,12 @@ pnpm --dir frontend build
 ```
 
 Set `VITE_API_BASE_URL` to your deployed backend URL.
+
+Example:
+
+```bash
+VITE_API_BASE_URL=https://your-backend.example.com
+```
 
 ### Backend
 
@@ -81,4 +101,21 @@ Set these environment variables:
 - `PORT`
 - `CORS_ORIGIN`
 
-For production, set `CORS_ORIGIN` to the frontend URL.
+For production, set `CORS_ORIGIN` to the frontend URL. Keep provider API keys
+in backend environment variables only; the current MVP works without them by
+using seeded demo data.
+
+### Post-deploy smoke test
+
+After both services are deployed:
+
+```bash
+curl https://your-backend.example.com/api/health
+```
+
+Then open the frontend URL and check:
+
+- the server registry renders
+- the chatbot can call a demo tool
+- manual tool tests add request/response entries
+- browser developer tools do not show CORS errors

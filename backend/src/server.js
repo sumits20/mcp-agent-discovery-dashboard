@@ -51,6 +51,24 @@ app.get("/api/mcp/requests", (_req, res) => {
   res.json({ requests: requestLog });
 });
 
+app.post("/api/mcp/tools/call", async (req, res, next) => {
+  try {
+    const toolName = req.body.toolName || req.body.name || req.body.tool;
+    const input = req.body.input || req.body.arguments || req.body.args || {};
+
+    if (!toolName) {
+      res.status(400).json({ error: "toolName is required" });
+      return;
+    }
+
+    const output = await runTool(toolName, input);
+    const entry = recordRequest({ toolName, input, output });
+    res.json({ request: entry, output });
+  } catch (error) {
+    next(error);
+  }
+});
+
 app.post("/api/tools/:toolName/test", async (req, res, next) => {
   try {
     const output = await runTool(req.params.toolName, req.body);
