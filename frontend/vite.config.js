@@ -4,7 +4,6 @@ import { defineConfig } from "vite";
 export default defineConfig({
   plugins: [react()],
   optimizeDeps: {
-    noDiscovery: true,
-    include: []
+    include: ["react", "react-dom/client", "reactflow", "lucide-react"]
   }
 });
