@@ -22,10 +22,17 @@ export function getRequests() {
   return request("/api/mcp/requests");
 }
 
-export function testTool(toolName, input) {
-  return request(`/api/tools/${toolName}/test`, {
+export function testTool(serverId, toolName, input) {
+  return request(`/api/tools/${encodeURIComponent(serverId)}/${encodeURIComponent(toolName)}/test`, {
     method: "POST",
     body: JSON.stringify(input)
+  });
+}
+
+export function reconnectServer(serverId) {
+  return request(`/api/mcp/servers/${encodeURIComponent(serverId)}/reconnect`, {
+    method: "POST",
+    body: "{}"
   });
 }
 
