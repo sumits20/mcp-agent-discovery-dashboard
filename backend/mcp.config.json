@@ -6,9 +6,13 @@
       "description": "Real weather data from NOAA and Open-Meteo. 6 tools, no API key required.",
       "transport": "stdio",
       "command": "npx",
-      "args": ["-y", "@dangahagan/weather-mcp@latest"],
+      "args": [
+        "-y",
+        "@dangahagan/weather-mcp@latest"
+      ],
       "env": {},
-      "enabled": true
+      "enabled": true,
+      "agentNotes": "Current conditions and alerts come from NOAA and only cover the USA. get_forecast uses Open-Meteo and works worldwide. For current weather outside the USA, prefer get_forecast here or the open-meteo-remote server."
     },
     {
       "id": "open-meteo-remote",
@@ -16,7 +20,8 @@
       "description": "Public hosted Open-Meteo MCP instance over Streamable HTTP - demonstrates the remote transport.",
       "transport": "http",
       "url": "https://open-meteo.caseyjhand.com/mcp",
-      "enabled": true
+      "enabled": true,
+      "agentNotes": "Global coverage for any location worldwide. Use openmeteo_get_forecast for current weather and forecasts anywhere - geocode first to get coordinates."
     },
     {
       "id": "amadeus",
@@ -24,12 +29,16 @@
       "description": "Flight search via the Amadeus test API. Requires AMADEUS_CLIENT_ID and AMADEUS_CLIENT_SECRET in backend/.env (free at developers.amadeus.com). Phase 4.",
       "transport": "stdio",
       "command": "npx",
-      "args": ["-y", "@fiqcodes/amadeus-mcp-server"],
+      "args": [
+        "-y",
+        "@fiqcodes/amadeus-mcp-server"
+      ],
       "env": {
         "AMADEUS_API_KEY": "${AMADEUS_CLIENT_ID}",
         "AMADEUS_API_SECRET": "${AMADEUS_CLIENT_SECRET}"
       },
-      "enabled": false
+      "enabled": false,
+      "agentNotes": "Test environment only - limited airlines and routes, prices are not live market fares."
     }
   ]
 }

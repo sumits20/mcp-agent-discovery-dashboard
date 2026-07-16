@@ -5,7 +5,8 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { nanoid } from "nanoid";
-import { callTool, findToolByKeyword, getServers, initMcp, reconnectServer } from "./mcp/clientManager.js";
+import { callTool, getServers, initMcp, reconnectServer } from "./mcp/clientManager.js";
+import { runAgent } from "./agent/reactAgent.js";
 
 dotenv.config();
 
@@ -103,62 +104,35 @@ app.post("/api/tools/:serverId/:toolName/test", async (req, res, next) => {
   }
 });
 
-// Interim chat: keyword-routes to a real discovered MCP tool.
-// Phase 2 replaces this with the LLM-driven ReAct agent.
-app.post("/api/chat", async (req, res, next) => {
+// ReAct agent chat: streams trace events over SSE.
+// Body: { message, history?: [{role, content}] }
+app.post("/api/chat", async (req, res) => {
+  const message = String(req.body.message || "").trim();
+  if (!message) {
+    res.status(400).json({ error: "message is required" });
+    return;
+  }
+
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.flushHeaders?.();
+
+  const send = (event) => res.write(`data: ${JSON.stringify(event)}\n\n`);
+
   try {
-    const message = String(req.body.message || "");
-    const lower = message.toLowerCase();
-
-    const keyword = lower.includes("weather") || lower.includes("forecast") ? "weather" : null;
-    if (!keyword) {
-      res.json({
-        reply:
-          "I'm currently a simple router (Phase 1). I can answer weather questions via the real Weather MCP server - try \"weather in London\". The full ReAct reasoning agent arrives in Phase 2.",
-        request: null,
-        output: null
-      });
-      return;
-    }
-
-    const match = findToolByKeyword("weather_summary") || findToolByKeyword("weather");
-    if (!match) {
-      res.json({
-        reply: "No online MCP server currently offers a weather tool. Check the server registry above.",
-        request: null,
-        output: null
-      });
-      return;
-    }
-
-    const location = message.match(/in ([a-z\s,]+?)(\?|$)/i)?.[1]?.trim() || "London";
-    const input = { city_name: location };
-    const result = await callTool(match.serverId, match.tool.name, input);
-    const entry = recordRequest({
-      serverId: match.serverId,
-      toolName: match.tool.name,
-      input,
-      output: result.output,
-      status: result.isError ? "error" : "success",
-      durationMs: result.durationMs
-    });
-
-    const text = (result.output || [])
-      .filter((block) => block.type === "text")
-      .map((block) => block.text)
-      .join("\n")
-      .slice(0, 1200);
-
-    res.json({
-      reply: text || `Called ${match.tool.name} on ${match.serverId}. Open the details drawer for the full response.`,
-      serverId: match.serverId,
-      toolName: match.tool.name,
-      request: entry,
-      output: result.output
+    await runAgent({
+      message,
+      history: Array.isArray(req.body.history) ? req.body.history : [],
+      onEvent: send,
+      recordRequest
     });
   } catch (error) {
-    next(error);
+    send({ type: "error", message: error.message });
   }
+
+  res.write("data: [DONE]\n\n");
+  res.end();
 });
 
 if (existsSync(frontendDist)) {

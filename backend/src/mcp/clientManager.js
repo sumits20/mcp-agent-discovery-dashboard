@@ -72,6 +72,7 @@ async function connectServer(config) {
     status: "offline",
     latencyMs: null,
     tools: [],
+    instructions: null,
     error: null
   };
   registry.set(config.id, entry);
@@ -90,6 +91,7 @@ async function connectServer(config) {
 
     entry.client = client;
     entry.status = "online";
+    entry.instructions = client.getInstructions?.() || null;
     entry.latencyMs = Date.now() - startedAt;
     entry.tools = tools.map((tool) => ({
       name: tool.name,
@@ -150,6 +152,8 @@ export function getServers() {
     transport: entry.config.transport,
     status: entry.status,
     latencyMs: entry.latencyMs,
+    agentNotes: entry.config.agentNotes || "",
+    instructions: entry.instructions,
     error: entry.error,
     tools: entry.tools.map((tool) => tool.name),
     toolDetails: entry.tools
