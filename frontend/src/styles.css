@@ -474,3 +474,54 @@ pre {
   color: #667085;
   margin: 0 0 8px;
 }
+
+/* Phase 2: ReAct trace steps */
+.trace-step {
+  display: flex;
+  gap: 7px;
+  align-items: flex-start;
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  margin-bottom: 4px;
+  border: none;
+  text-align: left;
+  width: 100%;
+  font-family: inherit;
+}
+
+.trace-step.thought {
+  background: #f4f1ff;
+  color: #5925dc;
+}
+
+.trace-step.action {
+  background: #e0f2f1;
+  color: #0e9384;
+  word-break: break-all;
+}
+
+.trace-step.observation {
+  background: #f8fafc;
+  color: #475467;
+  cursor: pointer;
+}
+
+.trace-step.observation.failed {
+  background: #fef3f2;
+  color: #b42318;
+}
+
+.trace-step svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.status.connecting {
+  background: #fff6e6;
+  color: #b25e09;
+}
+
+.flow-node.connecting {
+  opacity: 0.7;
+}

@@ -69,7 +69,7 @@ async function connectServer(config) {
   const entry = {
     config,
     client: null,
-    status: "offline",
+    status: "connecting",
     latencyMs: null,
     tools: [],
     instructions: null,

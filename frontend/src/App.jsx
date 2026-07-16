@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import ReactFlow, { Background, Controls, MiniMap } from "reactflow";
-import { Bot, CheckCircle2, Globe2, PanelRightOpen, Play, RefreshCw, XCircle } from "lucide-react";
-import { getRequests, getServers, reconnectServer, sendChat, testTool } from "./api";
+import { Bot, Brain, CheckCircle2, Eye, Globe2, PanelRightOpen, Play, RefreshCw, Wrench, XCircle } from "lucide-react";
+import { getRequests, getServers, reconnectServer, streamChat, testTool } from "./api";
 
 /** Build a sample JSON payload from a tool's real JSON Schema. */
 function samplePayloadFromSchema(schema = {}) {
@@ -64,7 +64,7 @@ function ServerCard({ server, onReconnect }) {
   );
 }
 
-function AgentGraph({ servers }) {
+function AgentGraph({ servers, activeServerId }) {
   const { nodes, edges } = useMemo(() => {
     const baseNodes = [
       { id: "user", position: { x: 0, y: 120 }, data: { label: "Operator" }, className: "flow-node user" },
@@ -85,11 +85,15 @@ function AgentGraph({ servers }) {
           id: `agent-${server.id}`,
           source: "agent",
           target: server.id,
-          animated: server.status === "online"
+          animated: server.id === activeServerId,
+          style:
+            server.id === activeServerId
+              ? { stroke: "#0e9384", strokeWidth: 3 }
+              : { opacity: server.status === "online" ? 1 : 0.35 }
         }))
       ]
     };
-  }, [servers]);
+  }, [servers, activeServerId]);
 
   return (
     <section className="panel graph-panel">
@@ -196,9 +200,49 @@ function ManualToolTester({ servers, onRequest }) {
   );
 }
 
-function ChatPanel({ onRequest }) {
-  const [messages, setMessages] = useState([
-    { role: "assistant", text: "Phase 1: I route weather questions to the real Weather MCP server. Try \"weather in London\"." }
+function TraceStep({ event, onOpenRequest }) {
+  if (event.type === "thought") {
+    return (
+      <div className="trace-step thought">
+        <Brain size={14} />
+        <span>{event.text}</span>
+      </div>
+    );
+  }
+  if (event.type === "tool_call") {
+    return (
+      <div className="trace-step action">
+        <Wrench size={14} />
+        <span>
+          <strong>
+            {event.serverId}/{event.toolName}
+          </strong>{" "}
+          {JSON.stringify(event.args)}
+        </span>
+      </div>
+    );
+  }
+  if (event.type === "tool_result") {
+    return (
+      <button
+        className={`trace-step observation ${event.ok ? "" : "failed"}`}
+        onClick={() => event.request && onOpenRequest(event.request)}
+        title="Open request details"
+      >
+        <Eye size={14} />
+        <span>
+          {event.durationMs != null ? `${event.durationMs} ms - ` : ""}
+          {event.preview}
+        </span>
+      </button>
+    );
+  }
+  return null;
+}
+
+function ChatPanel({ onRequest, onTraceEvent }) {
+  const [turns, setTurns] = useState([
+    { role: "assistant", trace: [], text: "I'm a real ReAct agent now. Ask me anything the discovered MCP tools can answer - try \"Is it warmer in Slough or in Bolpur right now?\"" }
   ]);
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
@@ -207,15 +251,42 @@ function ChatPanel({ onRequest }) {
     event.preventDefault();
     if (!message.trim() || busy) return;
     const userMessage = message.trim();
-    setMessages((items) => [...items, { role: "user", text: userMessage }]);
+
+    // History for the agent: prior user text + assistant final answers.
+    const history = turns
+      .filter((turn) => turn.text)
+      .map((turn) => ({ role: turn.role, content: turn.text }));
+
+    setTurns((items) => [...items, { role: "user", trace: [], text: userMessage }, { role: "assistant", trace: [], text: "" }]);
     setMessage("");
     setBusy(true);
+
     try {
-      const result = await sendChat(userMessage);
-      setMessages((items) => [...items, { role: "assistant", text: result.reply }]);
-      if (result.request) onRequest(result.request);
+      await streamChat(userMessage, history.slice(-8), (traceEvent) => {
+        onTraceEvent(traceEvent);
+        setTurns((items) => {
+          const next = [...items];
+          const current = { ...next[next.length - 1] };
+          if (traceEvent.type === "final") {
+            current.text = traceEvent.text;
+          } else if (traceEvent.type === "error") {
+            current.text = `Error: ${traceEvent.message}`;
+          } else {
+            current.trace = [...current.trace, traceEvent];
+          }
+          if (traceEvent.type === "tool_result" && traceEvent.request) {
+            onRequest(traceEvent.request);
+          }
+          next[next.length - 1] = current;
+          return next;
+        });
+      });
     } catch (chatError) {
-      setMessages((items) => [...items, { role: "assistant", text: `Error: ${chatError.message}` }]);
+      setTurns((items) => {
+        const next = [...items];
+        next[next.length - 1] = { ...next[next.length - 1], text: `Error: ${chatError.message}` };
+        return next;
+      });
     } finally {
       setBusy(false);
     }
@@ -224,19 +295,22 @@ function ChatPanel({ onRequest }) {
   return (
     <section className="panel chat-panel">
       <div className="section-title">
-        <h2>Chatbot</h2>
+        <h2>ReAct Agent</h2>
         <Bot size={19} />
       </div>
       <div className="messages">
-        {messages.map((item, index) => (
-          <div className={`message ${item.role}`} key={`${item.role}-${index}`}>
-            {item.text}
+        {turns.map((turn, index) => (
+          <div key={`turn-${index}`}>
+            {turn.trace.map((traceEvent, traceIndex) => (
+              <TraceStep event={traceEvent} key={`trace-${index}-${traceIndex}`} onOpenRequest={onRequest} />
+            ))}
+            {turn.text && <div className={`message ${turn.role}`}>{turn.text}</div>}
           </div>
         ))}
-        {busy && <div className="message assistant">Calling MCP server...</div>}
+        {busy && <div className="message assistant">Reasoning...</div>}
       </div>
       <form onSubmit={submitChat} className="chat-form">
-        <input value={message} onChange={(event) => setMessage(event.target.value)} placeholder="weather in London" />
+        <input value={message} onChange={(event) => setMessage(event.target.value)} placeholder="Ask the agent..." />
         <button className="icon-button primary" title="Send message" disabled={busy}>
           <PanelRightOpen size={17} />
         </button>
@@ -279,6 +353,7 @@ export function App() {
   const [servers, setServers] = useState([]);
   const [requests, setRequests] = useState([]);
   const [selectedRequest, setSelectedRequest] = useState(null);
+  const [activeServerId, setActiveServerId] = useState(null);
   const [loadError, setLoadError] = useState("");
 
   async function refreshServers() {
@@ -314,10 +389,24 @@ export function App() {
     refreshRequests();
   }
 
+  function handleTraceEvent(event) {
+    if (event.type === "tool_call") setActiveServerId(event.serverId);
+    if (event.type === "final" || event.type === "error") setActiveServerId(null);
+  }
+
   useEffect(() => {
     refreshServers();
     refreshRequests();
   }, []);
+
+  // Poll while the backend is starting up or MCP servers are still connecting.
+  useEffect(() => {
+    const settling =
+      loadError || !servers.length || servers.some((server) => server.status === "connecting");
+    if (!settling) return undefined;
+    const timer = setInterval(refreshServers, 3000);
+    return () => clearInterval(timer);
+  }, [loadError, servers]);
 
   const toolCount = servers.reduce((sum, server) => sum + server.tools.length, 0);
 
@@ -335,7 +424,7 @@ export function App() {
         </div>
       </header>
 
-      {loadError && <p className="error-text">{loadError}</p>}
+      {loadError && <p className="error-text">{loadError} - retrying...</p>}
 
       <section className="server-grid">
         {servers.map((server) => (
@@ -344,9 +433,9 @@ export function App() {
       </section>
 
       <div className="workspace-grid">
-        <AgentGraph servers={servers} />
+        <AgentGraph servers={servers} activeServerId={activeServerId} />
         <div className="right-rail">
-          <ChatPanel onRequest={handleRequest} />
+          <ChatPanel onRequest={handleRequest} onTraceEvent={handleTraceEvent} />
           <ManualToolTester servers={servers} onRequest={handleRequest} />
         </div>
       </div>

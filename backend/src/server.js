@@ -152,11 +152,12 @@ app.use((error, _req, res, _next) => {
   });
 });
 
-console.log("[mcp] connecting to configured MCP servers...");
+app.listen(port, () => {
+  console.log(`MCP Agent Discovery backend listening on http://localhost:${port}`);
+});
+
+console.log("[mcp] connecting to configured MCP servers in the background...");
 initMcp().then((servers) => {
   const online = servers.filter((server) => server.status === "online").length;
   console.log(`[mcp] ready: ${online}/${servers.length} servers online`);
-  app.listen(port, () => {
-    console.log(`MCP Agent Discovery backend listening on http://localhost:${port}`);
-  });
 });
